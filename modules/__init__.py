@@ -1,0 +1,1 @@
+"""Skill locali e controlli di sistema dell'assistente."""

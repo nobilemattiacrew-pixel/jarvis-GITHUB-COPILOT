@@ -1,0 +1,117 @@
+<!doctype html>
+<html lang="it">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#071116">
+  <meta name="description" content="Interfaccia locale di J.A.R.V.I.S.">
+  <title>J.A.R.V.I.S. | Interfaccia operativa</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=IBM+Plex+Mono:wght@400;500;600&family=Manrope:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/static/style.css">
+  <script src="/static/app.js" defer></script>
+</head>
+<body>
+  <div class="app-shell">
+    <header class="topbar">
+      <a class="brand" href="/" aria-label="J.A.R.V.I.S. home">
+        <span class="brand-mark" aria-hidden="true"><i></i><i></i><i></i></span>
+        <span class="brand-name">J.A.R.V.I.S.<small>INTERFACCIA OPERATIVA</small></span>
+      </a>
+      <div class="top-meta">
+        <span class="system-tag"><span class="pulse-dot"></span><span id="connection-label">CONNESSIONE</span></span>
+        <span class="clock" id="clock">--:--:--</span>
+        <button class="icon-button sound-toggle" id="sound-toggle" type="button" aria-label="Attiva o disattiva suoni HUD" title="Suoni HUD">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 10v4h4l5 4V6l-5 4H4Z"/><path d="M16 9a5 5 0 0 1 0 6M18.5 6.5a9 9 0 0 1 0 11"/></svg>
+        </button>
+      </div>
+    </header>
+
+    <main class="dashboard">
+      <aside class="telemetry-panel panel">
+        <div class="panel-heading"><span>TELEMETRIA</span><span class="micro-label">SYS / 01</span></div>
+        <div class="metric-block">
+          <div class="metric-title"><span class="metric-led"></span> PROCESSORE <strong id="cpu-value">--%</strong></div>
+          <div class="meter"><span id="cpu-meter"></span></div>
+          <div class="metric-foot"><span>CARICO SERVER</span><span id="cpu-note">IN ATTESA</span></div>
+        </div>
+        <div class="metric-block">
+          <div class="metric-title"><span class="metric-led gold"></span> MEMORIA <strong id="memory-value">--%</strong></div>
+          <div class="meter gold-meter"><span id="memory-meter"></span></div>
+          <div class="metric-foot"><span id="memory-used">RAM SERVER</span><span>MONITORAGGIO</span></div>
+        </div>
+        <div class="divider"></div>
+        <div class="panel-heading diagnostics-title"><span>DIAGNOSTICA</span><span class="micro-label">LIVE</span></div>
+        <ul class="diagnostic-list">
+          <li><span><i class="check-mark"></i> API LOCALE</span><b id="api-diagnostic">CHECK</b></li>
+          <li><span><i class="check-mark"></i> MOTORE VOCALE</span><b id="speech-diagnostic">CHECK</b></li>
+          <li><span><i class="check-mark"></i> MODELLO</span><b id="model-diagnostic">SIMULATO</b></li>
+          <li><span><i class="check-mark"></i> WEBCAM</span><b id="camera-diagnostic">STANDBY</b></li>
+        </ul>
+        <section class="camera-box" id="camera-box" aria-label="Anteprima webcam">
+          <video id="camera-video" autoplay muted playsinline></video>
+          <div class="camera-empty" id="camera-empty"><span class="camera-reticle">+</span><span>VISUAL INPUT</span></div>
+          <div class="camera-scan"></div>
+          <span class="camera-coordinate">CAM / 01</span>
+        </section>
+        <button class="camera-button" id="camera-toggle" type="button">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="6" width="13" height="12" rx="2"/><path d="m16 10 5-3v10l-5-3"/></svg>
+          <span>ATTIVA WEBCAM</span>
+        </button>
+      </aside>
+
+      <section class="reactor-panel panel" aria-label="Stato centrale di J.A.R.V.I.S.">
+        <div class="panel-heading"><span>CORE REACTOR</span><span class="micro-label" id="core-mode">STANDBY</span></div>
+        <div class="reactor-stage" id="reactor-stage">
+          <div class="reactor-grid"></div>
+          <div class="reactor-halo"></div>
+          <div class="reactor-ring ring-outer"><span></span></div>
+          <div class="reactor-ring ring-middle"><span></span></div>
+          <div class="reactor-ring ring-inner"><span></span></div>
+          <div class="reactor-core"><div class="core-facet"></div><div class="core-light"></div></div>
+          <div class="reactor-crosshair crosshair-h"></div>
+          <div class="reactor-crosshair crosshair-v"></div>
+          <div class="reactor-readout readout-left">ARC<br><b>01</b></div>
+          <div class="reactor-readout readout-right">OUTPUT<br><b id="reactor-output">100%</b></div>
+        </div>
+        <div class="state-line"><span class="state-light" id="state-light"></span><span id="assistant-state">SISTEMI PRONTI</span></div>
+        <canvas id="waveform" class="waveform" aria-label="Visualizzatore audio"></canvas>
+        <div class="reactor-caption"><span>VOICE CHANNEL</span><span id="voice-caption">IN ATTESA DI INPUT</span></div>
+        <div class="voice-settings">
+          <label for="pitch-range">TONO <output id="pitch-value">1.0</output></label>
+          <input id="pitch-range" type="range" min="0.6" max="1.5" step="0.1" value="1" aria-label="Tono della voce">
+          <label for="rate-range">RITMO <output id="rate-value">1.0</output></label>
+          <input id="rate-range" type="range" min="0.75" max="1.25" step="0.05" value="1" aria-label="Velocità della voce">
+        </div>
+      </section>
+
+      <section class="comms-panel panel">
+        <div class="panel-heading"><span>COMMS / LOG</span><button class="clear-button" id="clear-log" type="button" title="Pulisci conversazione">AZZERA</button></div>
+        <div class="conversation" id="conversation" role="log" aria-live="polite" aria-relevant="additions">
+          <article class="log-entry assistant-entry">
+            <span class="entry-meta"><b>J.A.R.V.I.S.</b><time>00:00:00</time></span>
+            <p class="entry-text">Buongiorno, Signore. Sistemi operativi e interfaccia di comunicazione pronti.</p>
+          </article>
+        </div>
+        <div class="interim-line" id="interim-line" aria-live="polite"></div>
+        <form class="composer" id="chat-form">
+          <textarea id="message-input" rows="1" maxlength="2000" placeholder="Inserisci un messaggio..." aria-label="Messaggio per J.A.R.V.I.S."></textarea>
+          <button class="send-button" type="submit" aria-label="Invia messaggio" title="Invia">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m21 3-7.2 18-3.9-7.9L2 9.2 21 3Z"/><path d="M9.9 13.1 15 8"/></svg>
+          </button>
+        </form>
+        <div class="comms-footer">
+          <button class="mic-button" id="mic-toggle" type="button" aria-pressed="false">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="9" y="3" width="6" height="12" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3m-4 0h8"/></svg>
+            <span>AVVIA ASCOLTO</span>
+          </button>
+          <span class="comms-hint" id="provider-label">CANALE LOCALE / SIMULATO</span>
+        </div>
+      </section>
+    </main>
+    <footer class="statusbar"><span><i class="status-square"></i> STARK SYSTEMS <b>LOCAL INSTANCE</b></span><span>ENCRYPTED SESSION <i class="status-square gold-square"></i></span></footer>
+  </div>
+  <div class="toast" id="toast" role="status" aria-live="polite"></div>
+</body>
+</html>
