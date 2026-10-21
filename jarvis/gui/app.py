@@ -9,9 +9,9 @@ from __future__ import annotations
 import sys
 from typing import Optional
 
-from PyQt6.QtCore import Qt, QThread, pyqtSignal, pyqtSlot
+from PyQt6.QtCore import Qt, QThread, pyqtSignal, pyqtSlot, QTimer, QPropertyAnimation, QEasingCurve, QEvent, QPointF
 
-from PyQt6.QtGui import QFont, QTextCursor, QAction, QIcon
+from PyQt6.QtGui import QFont, QTextCursor, QAction, QIcon, QColor, QBrush, QPen
 from PyQt6.QtWidgets import (
     QApplication,
     QMainWindow,
@@ -25,6 +25,10 @@ from PyQt6.QtWidgets import (
     QMenu,
     QLabel,
     QFrame,
+    QGraphicsView,
+    QGraphicsScene,
+    QGraphicsEllipseItem,
+    QGraphicsLineItem,
 )
 
 from jarvis.config import Config
@@ -56,6 +60,110 @@ class WorkerThread(QThread):
             self.error_occurred.emit(str(e))
 
 
+class ParticleBackground(QWidget):
+    """Animated particle background inspired by holographic Iron Man UI.
+
+    Uses a QGraphicsView with a scene of moving particles connected by lines.
+    The particle system is lightweight (max 100 particles) and runs at 60 FPS.
+    """
+    def __init__(self, parent=None, max_particles: int = 80, glow: bool = True):
+        super().__init__(parent)
+        self.max_particles = max_particles
+        self.glow = glow
+        self.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents)
+        self.setAttribute(Qt.WidgetAttribute.WA_NoSystemBackground)
+        self.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, False)
+        self.view = QGraphicsView(self)
+        self.view.setStyleSheet("background: transparent; border: none;")
+        self.view.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        self.view.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        self.view.setFrameShape(QGraphicsView.Shape.NoFrame)
+        self.scene = QGraphicsScene(self)
+        self.view.setScene(self.scene)
+        self.particles = []
+        self.lines = []
+        self.timer = QTimer(self)
+        self.timer.timeout.connect(self.update_particles)
+        self.timer.start(16)  # ~60 FPS
+        self.init_particles()
+
+    def resizeEvent(self, event):
+        self.view.setGeometry(self.rect())
+        self.scene.setSceneRect(0, 0, self.width(), self.height())
+        super().resizeEvent(event)
+
+    def init_particles(self):
+        import random, math
+        self.particles.clear()
+        self.scene.clear()
+        for _ in range(self.max_particles):
+            x = random.uniform(0, self.width())
+            y = random.uniform(0, self.height())
+            vx = random.uniform(-0.5, 0.5)
+            vy = random.uniform(-0.5, 0.5)
+            radius = random.uniform(1.5, 3.0)
+            item = QGraphicsEllipseItem(0, 0, radius * 2, radius * 2)
+            color = QColor(0, 255, 255, 180) if self.glow else QColor(0, 200, 200, 120)
+            brush = QBrush(color)
+            item.setBrush(brush)
+            pen = QPen(Qt.PenStyle.NoPen)
+            item.setPen(pen)
+            item.setPos(x, y)
+            self.scene.addItem(item)
+            self.particles.append({"item": item, "vx": vx, "vy": vy, "radius": radius})
+        # Pre-create line items pool
+        self.lines = []
+        for _ in range(self.max_particles * self.max_particles // 2):
+            line = QGraphicsLineItem()
+            line.setPen(QPen(QColor(0, 255, 255, 80), 0.8))
+            line.setVisible(False)
+            self.scene.addItem(line)
+            self.lines.append(line)
+
+    def update_particles(self):
+        import math, random
+        w, h = self.width(), self.height()
+        # Move particles
+        for p in self.particles:
+            item = p["item"]
+            x = item.x() + p["vx"]
+            y = item.y() + p["vy"]
+            # Bounce off edges
+            if x < 0 or x > w:
+                p["vx"] *= -1
+                x = max(0, min(w, x))
+            if y < 0 or y > h:
+                p["vy"] *= -1
+                y = max(0, min(h, y))
+            item.setPos(x, y)
+        # Update lines between close particles
+        threshold = 100  # max distance to draw line
+        line_index = 0
+        for i in range(len(self.particles)):
+            pi = self.particles[i]["item"]
+            xi, yi = pi.x() + self.particles[i]["radius"], pi.y() + self.particles[i]["radius"]
+            for j in range(i + 1, len(self.particles)):
+                pj = self.particles[j]["item"]
+                xj, yj = pj.x() + self.particles[j]["radius"], pj.y() + self.particles[j]["radius"]
+                dx = xi - xj
+                dy = yi - yj
+                dist2 = dx * dx + dy * dy
+                if dist2 < threshold * threshold:
+                    line = self.lines[line_index]
+                    line.setLine(xi, yi, xj, yj)
+                    # Fade line based on distance
+                    alpha = int(255 * (1 - math.sqrt(dist2) / threshold))
+                    pen = line.pen()
+                    pen.setColor(QColor(0, 255, 255, alpha))
+                    line.setPen(pen)
+                    line.setVisible(True)
+                    line_index += 1
+        # Hide unused lines
+        for k in range(line_index, len(self.lines)):
+            self.lines[k].setVisible(False)
+
+# End of ParticleBackground class
+
 class JarvisGUI(QMainWindow):
     """Main window for the JARVIS GUI."""
 
@@ -77,36 +185,37 @@ class JarvisGUI(QMainWindow):
 
         self.logger.info("JARVIS GUI initialized")
 
-    def _connect_signals(self) -> None:
-        """Connect internal signals.
-
-        Connects voice_recognized and voice_error to their handlers.
+    def eventFilter(self, source, event):
+        """Show quick‑action buttons when mouse enters the window.
+        Hide them on leave.
         """
-        self.voice_recognized.connect(self._handle_voice_result)
-        self.voice_error.connect(self._handle_voice_error)
+        if event.type() == QEvent.Type.Enter:
+            for btn in self.quick_actions:
+                btn.show()
+        elif event.type() == QEvent.Type.Leave:
+            for btn in self.quick_actions:
+                btn.hide()
+        return super().eventFilter(source, event)
 
-    @pyqtSlot(str)
-    def _handle_voice_result(self, text: str) -> None:
-        """Handle successful voice recognition.
+    def _open_settings(self):
+        """Placeholder for opening a settings dialog."""
+        self._append_message("⚙️ Settings dialog would open here.", is_user=False)
 
-        Inserts the recognized text into the input field and triggers sending.
-        """
-        self.input_field.setText(text)
-        self._send_message()
+    def _reset_chat(self):
+        """Clear the chat display and reset any conversation state."""
+        self.chat_display.clear()
+        self._append_message("🗑️ Chat reset.", is_user=False)
 
-    @pyqtSlot(str)
-    def _handle_voice_error(self, error_msg: str) -> None:
-        """Handle voice recognition errors without crashing.
-
-        Logs the error and shows a status message.
-        """
-        logger.error(f"Voice thread error: {error_msg}")
-        self.status_label.setText("● Errore voce")
-        self.status_label.setStyleSheet("color: #ff4444;")
-        # Keep GUI alive – do not re‑raise.
-
-    # ---------------------------------------------------------------------
-    # Existing UI/setup methods (unchanged) follow unchanged up to the end of file.
+    def _save_log(self):
+        """Save the current chat log to a timestamped file in the project logs/ directory."""
+        import datetime, os
+        logs_dir = os.path.join(os.path.dirname(__file__), "..", "..", "logs")
+        os.makedirs(logs_dir, exist_ok=True)
+        timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
+        log_path = os.path.join(logs_dir, f"chat_{timestamp}.txt")
+        with open(log_path, "w", encoding="utf-8") as f:
+            f.write(self.chat_display.toPlainText())
+        self._append_message(f"💾 Log saved to {log_path}", is_user=False)
 
     def _setup_ui(self) -> None:
         """Set up the user interface."""
@@ -117,6 +226,10 @@ class JarvisGUI(QMainWindow):
         # Central widget
         central_widget = QWidget()
         self.setCentralWidget(central_widget)
+        # Particle background (covers whole window)
+        self.particle_bg = ParticleBackground(self)
+        self.particle_bg.setGeometry(self.rect())
+        self.particle_bg.lower()
         layout = QVBoxLayout(central_widget)
         layout.setSpacing(10)
         layout.setContentsMargins(15, 15, 15, 15)
@@ -131,7 +244,14 @@ class JarvisGUI(QMainWindow):
         # Status indicators
         self.status_label = QLabel("● Pronto")
         self.status_label.setObjectName("statusLabel")
+        # Add glow effect for status when listening/processing
+        self.status_glow_anim = QPropertyAnimation(self.status_label, b"styleSheet")
+        self.status_glow_anim.setDuration(800)
+        self.status_glow_anim.setLoopCount(-1)
+        self.status_glow_anim.setStartValue("color: #00ff00;")
+        self.status_glow_anim.setEndValue("color: #00ff00; background-color: rgba(0,255,0,0.2);")
         title_layout.addWidget(self.status_label)
+
 
         layout.addLayout(title_layout)
 
@@ -166,6 +286,8 @@ class JarvisGUI(QMainWindow):
         input_layout.addWidget(self.voice_button)
 
         layout.addLayout(input_layout)
+        # Run entry animation (fade‑in + zoom)
+        self._run_entry_animation()
 
         # Set always-on-top if configured
         if Config.ALWAYS_ON_TOP:
@@ -201,6 +323,26 @@ class JarvisGUI(QMainWindow):
             self.raise_()
             self.activateWindow()
 
+    @pyqtSlot(str)
+    def _handle_voice_result(self, text: str) -> None:
+        """Handle successful voice recognition.
+
+        Inserts the recognized text into the input field and triggers sending.
+        """
+        self.input_field.setText(text)
+        self._send_message()
+
+    @pyqtSlot(str)
+    def _handle_voice_error(self, error_msg: str) -> None:
+        """Handle voice recognition errors without crashing.
+
+        Logs the error and shows a status message.
+        """
+        logger.error(f"Voice thread error: {error_msg}")
+        self.status_label.setText("● Errore voce")
+        self.status_label.setStyleSheet("color: #ff4444;")
+        # Keep GUI alive – do not re‑raise.
+
     def _connect_signals(self) -> None:
         """Connect signals and slots.
 
@@ -210,7 +352,6 @@ class JarvisGUI(QMainWindow):
         # Connect voice signals
         self.voice_recognized.connect(self._handle_voice_result)
         self.voice_error.connect(self._handle_voice_error)
-
 
     def _apply_styles(self) -> None:
         """Apply the dark futuristic stylesheet."""
@@ -289,6 +430,17 @@ class JarvisGUI(QMainWindow):
             }
         """)
 
+    def _run_entry_animation(self) -> None:
+        """Fade‑in the window on start (and slight zoom)."""
+        self.setWindowOpacity(0.0)
+        anim = QPropertyAnimation(self, b"windowOpacity")
+        anim.setDuration(800)
+        anim.setStartValue(0.0)
+        anim.setEndValue(1.0)
+        anim.start()
+        # keep reference to avoid GC
+        self._entry_anim = anim
+
     def _show_welcome_message(self) -> None:
         """Show the initial welcome message."""
         welcome_msg = (
@@ -354,14 +506,20 @@ class JarvisGUI(QMainWindow):
         if not user_text:
             return
 
+        # Append user message and clear input
         self._append_message(user_text, is_user=True)
         self.input_field.clear()
+
+        # Update HUD: show thinking, change mic status to idle
+        self.thinking_indicator.show()
+        self.mic_status.setText("🔊")
+        self.mic_status.setStyleSheet("color: #00ff00;")
 
         # Disable input while processing
         self.input_field.setEnabled(False)
         self.send_button.setEnabled(False)
         self.voice_button.setEnabled(False)
-        self.status_label.setText("● Elaborazione...")
+        self.status_label.setText("● Elaborazione…")
         self.status_label.setStyleSheet("color: #ffcc00;")
 
         # Start worker thread
@@ -369,6 +527,7 @@ class JarvisGUI(QMainWindow):
         self.worker_thread.response_ready.connect(self._on_response_ready)
         self.worker_thread.error_occurred.connect(self._on_error)
         self.worker_thread.start()
+
 
     @pyqtSlot(str)
     def _on_response_ready(self, response: str) -> None:

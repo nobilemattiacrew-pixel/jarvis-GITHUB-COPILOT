@@ -92,6 +92,8 @@ JARVIS riconosce naturalmente il linguaggio, ma alcuni esempi di comandi:
 - "Apri Blocco note" - apre l'applicazione Blocco note
 - "Ferma ascolto" - disattiva temporaneamente il microfono
 
+JARVIS riconosce inoltre i sinonimi delle applicazioni (es. "calcolatrice" → calc, "blocco" → notepad, "esplora" → explorer) e l'apertura dei siti web sia con "apri <sito>" che "vai a <sito>".
+
 ### Applicazioni e siti autorizzati
 Per motivi di sicurezza, JARVIS può aprire solo le applicazioni e i siti web elencati nella configurazione (`Config.AUTHORIZED_APPS` e `Config.AUTHORIZED_URLS` in `jarvis/config.py`). Per modificarli, aggiorna il file `.env` o il codice di configurazione.
 
@@ -135,6 +137,10 @@ Modifica `JARVIS_MODEL` nel file `.env`:
 - `JARVIS_TTS_RATE`: Velocità della parola (parole al minuto, default 150)
 - `JARVIS_TTS_VOLUME`: Volume (0.0 a 1.0, default 0.9)
 - `JARVIS_LANGUAGE`: Lingua per riconoscimento/sintesi (default `it-IT`)
+- `JARVIS_MICROPHONE_INDEX` (opzionale): Forza l'uso di un microfono specifico per indice. Per vedere gli indici disponibili, esegui:
+  ```bash
+  python -c "import speech_recognition as sr; print(sr.Microphone.list_microphone_names())"
+  ```
 
 ### Aggiungere applicazioni/websites autorizzati
 Modifica il file `.env` o direttamente `jarvis/config.py` nelle sezioni:
